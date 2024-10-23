@@ -132,6 +132,21 @@ export namespace auth {
 }
 
 export namespace repopack {
+    export interface Message {
+        humanFriendlyProgress: string
+        output?: string
+        complete: boolean
+        error?: string
+    }
+
+    export interface ProcessRepoRequest {
+        githubUrl: string
+        excludePatterns?: string[]
+        sizeThresholdMb?: number
+        regexFilter?: string
+        maxRepoSizeMb?: number
+    }
+
     export interface ProcessRepoRequest {
         githubUrl: string
         excludePatterns?: string[]
@@ -155,6 +170,19 @@ export namespace repopack {
             return await resp.json() as {
     output: string
 }
+        }
+
+        public async processRepoStreaming(params: ProcessRepoRequest): Promise<StreamIn<Message>> {
+            // Convert our params into the objects we need for the request
+            const query = makeRecord<string, string | string[]>({
+                excludePatterns: params.excludePatterns?.map((v) => v),
+                githubUrl:       params.githubUrl,
+                maxRepoSizeMb:   params.maxRepoSizeMb === undefined ? undefined : String(params.maxRepoSizeMb),
+                regexFilter:     params.regexFilter,
+                sizeThresholdMb: params.sizeThresholdMb === undefined ? undefined : String(params.sizeThresholdMb),
+            })
+
+            return await this.baseClient.createStreamIn(`/process-repo-streaming`, {query})
         }
     }
 }
