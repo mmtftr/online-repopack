@@ -2,7 +2,7 @@ import Client, { Environment, Local } from "@/app/lib/client";
 import { RepopackRequest, RepopackResponse } from "./types";
 
 
-const API_BASE_URL = process.env.NODE_ENV === "development" ? Local : Environment(process.env.NODE_ENV);
+const API_BASE_URL = process.env.NODE_ENV === "development" ? Local : Environment("staging");
 
 const cl = new Client(API_BASE_URL);
 
