@@ -1,0 +1,14 @@
+diff --git a/node_modules/repopack/package.json b/node_modules/repopack/package.json
+index 5679bda..4149533 100644
+--- a/node_modules/repopack/package.json
++++ b/node_modules/repopack/package.json
+@@ -6,7 +6,8 @@
+   "types": "./lib/index.d.ts",
+   "exports": {
+     ".": {
+-      "types": "./lib/index.d.ts"
++      "types": "./lib/index.d.ts",
++      "import": "./lib/index.js"
+     }
+   },
+   "bin": "./bin/repopack.cjs",
