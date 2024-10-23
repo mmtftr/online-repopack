@@ -1,8 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
-export default function Unauthenticated() {
+function UnauthenticatedContent() {
   const searchParams = useSearchParams();
   const fromPage = searchParams.get("from");
 
@@ -14,5 +15,13 @@ export default function Unauthenticated() {
         You need to be logged in to view <code>{fromPage}</code>
       </p>
     </section>
+  );
+}
+
+export default function Unauthenticated() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <UnauthenticatedContent />
+    </Suspense>
   );
 }
