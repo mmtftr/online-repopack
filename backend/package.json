@@ -20,6 +20,7 @@
     "react-dom": "^18",
     "typescript": "^5.2.2"
   },
+  "packageManager": "yarn@1.22.22",
   "dependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
