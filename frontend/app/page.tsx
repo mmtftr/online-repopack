@@ -12,8 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { processRepoStreaming } from "@/lib/api";
+import { processRepository } from "@/lib/api";
 import { RepopackRequest } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -22,15 +21,11 @@ export default function HomePage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
-    setProgress(0);
-    setProgressMessage("");
 
     const formData = new FormData(event.currentTarget);
     const request: RepopackRequest = {
@@ -44,20 +39,13 @@ export default function HomePage() {
     };
 
     try {
-      const stream = await processRepoStreaming(request);
-      for await (const message of stream) {
-        setProgressMessage(message.humanFriendlyProgress);
-        setProgress((prev) => Math.min(prev + 10, 90)); // Increment progress
-
-        if (message.complete) {
-          if (message.error) {
-            setError(message.error);
-          } else if (message.output) {
-            localStorage.setItem("repopackOutput", message.output);
-            router.push("/results");
-          }
-          break;
-        }
+      const response = await processRepository(request);
+      if (response.status === "completed") {
+        // Store the output in localStorage for the results page
+        localStorage.setItem("repopackOutput", response.output || "");
+        router.push("/results");
+      } else {
+        setError(response.error || "Failed to process repository");
       }
     } catch (err) {
       setError(
@@ -65,7 +53,6 @@ export default function HomePage() {
       );
     } finally {
       setIsSubmitting(false);
-      setProgress(100);
     }
   };
 
@@ -85,13 +72,6 @@ export default function HomePage() {
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
-            )}
-
-            {isSubmitting && (
-              <div className="space-y-2">
-                <Progress value={progress} className="w-full" />
-                <p className="text-sm text-gray-500">{progressMessage}</p>
-              </div>
             )}
 
             <div className="space-y-2">

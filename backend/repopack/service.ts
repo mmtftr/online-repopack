@@ -87,6 +87,7 @@ export class RepopackService {
       fs.writeFileSync(ignoreFilePath, ignorePatterns.join('\n'));
 
       yield { humanFriendlyProgress: 'Running repopack...', complete: false };
+
       const config = {
         ...defaultConfig,
         cwd: workDir,
