@@ -1,0 +1,34 @@
+{
+  "name": "next-starter",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Encore + Next Starter",
+  "license": "MPL-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "gen": "encore gen client next-js-test-ts-9wvi --output=./frontend/app/lib/client.ts --env=staging",
+    "gen:local": "encore gen client next-js-test-ts-9wvi --output=./frontend/app/lib/client.ts --env=local",
+    "postinstall": "patch-package"
+  },
+  "devDependencies": {
+    "next": "14.2.2",
+    "react": "^18",
+    "react-dom": "^18",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "encore.dev": "^1.35.3",
+    "lucide-react": "^0.453.0",
+    "react-hot-toast": "^2.4.1",
+    "repopack": "^0.1.43",
+    "typescript": "^5"
+  },
+  "packageManager": "yarn@4.5.0"
+}
