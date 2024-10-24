@@ -1,6 +1,7 @@
 // src/repopack.ts
 import { spawn } from 'child_process';
 import { randomUUID } from 'crypto';
+import * as fg from 'fast-glob';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -8,6 +9,7 @@ import { pack } from "repopack";
 import { ProcessRepoRequest } from '.';
 import { AsyncGeneratorCallback } from './util';
 
+const TOP_FILES_LENGTH = 10;
 const defaultConfig: Parameters<typeof pack>[1] = {
   cwd: os.tmpdir(),
   output: {
@@ -29,15 +31,6 @@ const defaultConfig: Parameters<typeof pack>[1] = {
   },
 };
 
-interface RepopackOptions {
-  githubUrl: string;
-  excludePatterns?: string[];
-  sizeThresholdMb?: number;
-  regexFilter?: string;
-  maxRepoSizeMb?: number;
-  outputStyle?: 'markdown' | 'xml';
-}
-
 interface FileInfo {
   path: string;
   size: number;
@@ -49,17 +42,27 @@ export interface Message {
   output?: string;
   complete: boolean;
   error?: string;
+  largeFiles?: {
+    path: string;
+    size: number;
+    tokenCount: number;
+  }[];
+  waitingForFileSelection?: boolean;
+}
+
+export interface SelectedFilesMessage {
+  selectedFiles?: string[];
 }
 
 export class RepopackService {
-  async *processRepositoryStreaming(handshake: ProcessRepoRequest): AsyncGenerator<Message> {
+  async *processRepositoryStreaming(handshake: ProcessRepoRequest): AsyncGenerator<Message, void, SelectedFilesMessage | undefined> {
     const {
       githubUrl,
-      excludePatterns = [],
+      excludePatterns = "",
       sizeThresholdMb = this.DEFAULT_SIZE_THRESHOLD_MB,
-      regexFilter,
       outputStyle = 'markdown'
     } = handshake;
+    const excludePatternsArray = excludePatterns.split('\n').filter(Boolean);
 
     const workDir = path.join(this.TEMP_DIR, randomUUID());
     try {
@@ -82,22 +85,46 @@ export class RepopackService {
         yield { humanFriendlyProgress: 'Error cloning repository', error: String(error), complete: true, progress: 100 };
         return;
       }
-      yield { humanFriendlyProgress: 'Repository cloned successfully', complete: false, progress: 80 };
 
       yield { humanFriendlyProgress: 'Analyzing repository...', complete: false, progress: 85 };
-      const files = await this.getRepositoryFiles(workDir);
-      const largeFiles = files.filter(f => f.size > sizeThresholdMb * 1024 * 1024);
 
-      yield { humanFriendlyProgress: 'Preparing ignore patterns...', complete: false, progress: 90 };
+      const files = await this.getRepositoryFiles(workDir, excludePatternsArray);
+
+      let largeFiles = (await Promise.all(
+        files
+          .map(async f => ({
+            path: path.relative(workDir, f.path),
+            size: f.size,
+            tokenCount: await this.countTokens(f.path)
+          }))
+      )).sort((a, b) => b.size - a.size);
+
+      if (largeFiles.filter(f => f.size > sizeThresholdMb * 1024 * 1024).length < TOP_FILES_LENGTH) {
+        largeFiles = largeFiles.slice(0, TOP_FILES_LENGTH);
+      } else {
+        largeFiles = largeFiles.filter(f => f.size > sizeThresholdMb * 1024 * 1024);
+      }
+
+
+      // Send large files info and wait for user selection
+      const selectedFiles =
+        yield {
+          humanFriendlyProgress: 'Large files found. Waiting for selection...',
+          complete: false,
+          progress: 87,
+          largeFiles,
+          waitingForFileSelection: true
+        };
+
+      // Wait for response with selected files
+
+      // Add selected files to exclude patterns
       const ignorePatterns = [
-        ...excludePatterns,
-        ...largeFiles.map(f => path.relative(workDir, f.path)),
-        ...(regexFilter ? [regexFilter] : [])
+        ...excludePatternsArray,
+        ...(selectedFiles?.selectedFiles || largeFiles.filter(f => f.size > sizeThresholdMb * 1024 * 1024).map(f => f.path)),
       ];
-      const ignoreFilePath = path.join(workDir, '.repopackignore');
-      fs.writeFileSync(ignoreFilePath, ignorePatterns.join('\n'));
 
-      yield { humanFriendlyProgress: 'Running repopack...', complete: false, progress: 95 };
+      yield { humanFriendlyProgress: 'Running repopack...', complete: false, progress: 90 };
 
       const config = {
         ...defaultConfig,
@@ -118,7 +145,8 @@ export class RepopackService {
       this.runRepopack(config, (progress) => {
         numMessages++;
         const progressNum = 1 / (1 + Math.exp(-numMessages * 0.05)) * 100;
-        cb.call({ humanFriendlyProgress: `Running repopack: ${progress}%`, complete: false, progress: progressNum * 0.5 + 95 });
+
+        cb.call({ humanFriendlyProgress: `Running repopack: ${progress}`, complete: false, progress: progressNum * 0.5 + 95 });
       }).then((output) => {
         cb.call({ humanFriendlyProgress: 'Processing complete', complete: true, output, progress: 100 });
       }).catch((error) => {
@@ -225,36 +253,33 @@ export class RepopackService {
     return data.size / 1024; // Convert KB to MB
   }
 
-  private async getRepositoryFiles(dir: string): Promise<FileInfo[]> {
+  private async getRepositoryFiles(dir: string, excludePatternsArray: string[]): Promise<FileInfo[]> {
     const files: FileInfo[] = [];
 
-    const walk = (currentPath: string) => {
-      const entries = fs.readdirSync(currentPath, { withFileTypes: true });
-
+    return fg.default.glob("**/*", {
+      ignore: excludePatternsArray.concat(['node_modules', '.git']),
+      cwd: dir
+    }).then(entries => {
       for (const entry of entries) {
-        const fullPath = path.join(currentPath, entry.name);
-
-        if (entry.isDirectory()) {
-          if (entry.name !== '.git') {
-            walk(fullPath);
-          }
-        } else {
-          const stats = fs.statSync(fullPath);
-          files.push({
-            path: fullPath,
-            size: stats.size
-          });
-        }
+        const stats = fs.statSync(path.join(dir, entry));
+        files.push({
+          path: path.join(dir, entry),
+          size: stats.size
+        });
       }
-    };
-
-    walk(dir);
-    return files;
+      return files;
+    });
   }
 
   private async runRepopack(config: Parameters<typeof pack>[1], progressCallback?: Parameters<typeof pack>[2]): Promise<string> {
     await pack(config.cwd, config, progressCallback);
 
     return await fs.promises.readFile(path.join(config.cwd, "repopack-output.md"), "utf8");
+  }
+
+  private async countTokens(filePath: string): Promise<number> {
+    // TODO: Implement token counting
+    // Concern: Token counting is expensive, and this could result in DoS
+    return 0;
   }
 }

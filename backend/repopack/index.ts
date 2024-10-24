@@ -1,23 +1,30 @@
 import { api } from "encore.dev/api";
-import { Message, RepopackService } from "./service";
+import { Message, RepopackService, SelectedFilesMessage } from "./service";
 
+const FILE_SELECTION_TIMEOUT_MS = 100000;
 export interface ProcessRepoRequest {
   githubUrl: string;
-  excludePatterns?: string[];
+  excludePatterns?: string;
   sizeThresholdMb?: number;
-  regexFilter?: string;
-  maxRepoSizeMb?: number;
   outputStyle?: 'markdown' | 'xml';  // Add this line
 }
 
-export const processRepoStreaming = api.streamOut<ProcessRepoRequest, Message>({
+export const processRepoStreaming = api.streamInOut<ProcessRepoRequest, SelectedFilesMessage, Message>({
   path: "/process-repo-streaming",
   expose: true,
   auth: false,
 }, async (handshake, stream) => {
   const service = new RepopackService();
-  for await (const message of service.processRepositoryStreaming(handshake)) {
+
+  const generator = service.processRepositoryStreaming(handshake);
+  for await (const message of generator) {
     await stream.send(message);
+    if (message.waitingForFileSelection) {
+      const selectedFiles = await Promise.race([stream.recv(), new Promise<SelectedFilesMessage | undefined>(resolve => setTimeout(() => resolve(undefined), FILE_SELECTION_TIMEOUT_MS))]);
+      if (selectedFiles) {
+        await generator.next(selectedFiles);
+      }
+    }
   }
   return await stream.close();
 });

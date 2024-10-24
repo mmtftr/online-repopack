@@ -138,15 +138,25 @@ export namespace repopack {
         output?: string
         complete: boolean
         error?: string
+        largeFiles?: {
+            path: string
+            size: number
+            tokenCount: number
+        }[]
+        waitingForFileSelection?: boolean
     }
 
     export interface ProcessRepoRequest {
         githubUrl: string
-        excludePatterns?: string[]
+        excludePatterns?: string
         sizeThresholdMb?: number
         regexFilter?: string
         maxRepoSizeMb?: number
         outputStyle?: "markdown" | "xml"
+    }
+
+    export interface SelectedFilesMessage {
+        selectedFiles?: string[]
     }
 
     export class ServiceClient {
@@ -156,10 +166,10 @@ export namespace repopack {
             this.baseClient = baseClient
         }
 
-        public async processRepoStreaming(params: ProcessRepoRequest): Promise<StreamIn<Message>> {
+        public async processRepoStreaming(params: ProcessRepoRequest): Promise<StreamInOut<SelectedFilesMessage, Message>> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
-                excludePatterns: params.excludePatterns?.map((v) => v),
+                excludePatterns: params.excludePatterns,
                 githubUrl:       params.githubUrl,
                 maxRepoSizeMb:   params.maxRepoSizeMb === undefined ? undefined : String(params.maxRepoSizeMb),
                 outputStyle:     params.outputStyle === undefined ? undefined : String(params.outputStyle),
@@ -167,7 +177,7 @@ export namespace repopack {
                 sizeThresholdMb: params.sizeThresholdMb === undefined ? undefined : String(params.sizeThresholdMb),
             })
 
-            return await this.baseClient.createStreamIn(`/process-repo-streaming`, {query})
+            return await this.baseClient.createStreamInOut(`/process-repo-streaming`, {query})
         }
     }
 }
