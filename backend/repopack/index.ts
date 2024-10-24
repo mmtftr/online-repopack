@@ -7,23 +7,8 @@ export interface ProcessRepoRequest {
   sizeThresholdMb?: number;
   regexFilter?: string;
   maxRepoSizeMb?: number;
+  outputStyle?: 'markdown' | 'xml';  // Add this line
 }
-
-export async function processRepoImpl(req: ProcessRepoRequest): Promise<{ output: string }> {
-  const service = new RepopackService();
-  return {
-    output: await service.processRepository(req),
-  };
-}
-
-
-export const processRepo = api<ProcessRepoRequest, Promise<{ output: string }>>({
-  method: "POST",
-  path: "/process-repo",
-  expose: true,
-  auth: false,
-}, processRepoImpl);
-
 
 export const processRepoStreaming = api.streamOut<ProcessRepoRequest, Message>({
   path: "/process-repo-streaming",

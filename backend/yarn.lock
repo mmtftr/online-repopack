@@ -90,6 +90,11 @@
     "@nodelib/fs.scandir" "2.1.5"
     fastq "^1.6.0"
 
+"@repeaterjs/repeater@^3.0.6":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@repeaterjs/repeater/-/repeater-3.0.6.tgz#be23df0143ceec3c69f8b6c2517971a5578fdaa2"
+  integrity sha512-Javneu5lsuhwNCryN+pXH93VPQ8g0dBX7wItHFgYiwQmzE1sVdg5tWHiOgHywzL2W21XQopa7IwIEnNbmeUJYA==
+
 "@secretlint/core@^8.4.0":
   version "8.5.0"
   resolved "https://registry.yarnpkg.com/@secretlint/core/-/core-8.5.0.tgz#b3ce63c013f89292adc0de487ec52ea15de515c9"

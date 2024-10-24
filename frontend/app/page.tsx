@@ -12,15 +12,26 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { processRepository } from "@/lib/api";
-import { RepopackRequest } from "@/lib/types";
+import { Progress } from "@/components/ui/progress";
+import { processRepoStreaming } from "@/lib/api";
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { repopack } from "./lib/client";
 
 export default function HomePage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -28,7 +39,7 @@ export default function HomePage() {
     setError(null);
 
     const formData = new FormData(event.currentTarget);
-    const request: RepopackRequest = {
+    const request: repopack.ProcessRepoRequest = {
       githubUrl: formData.get("githubUrl") as string,
       sizeThresholdMb: Number(formData.get("sizeThreshold")) || undefined,
       regexFilter: (formData.get("regexFilter") as string) || undefined,
@@ -36,23 +47,39 @@ export default function HomePage() {
         .split("\n")
         .map((p) => p.trim())
         .filter(Boolean),
+      outputStyle:
+        (formData.get(
+          "outputStyle"
+        ) as repopack.ProcessRepoRequest["outputStyle"]) || "markdown",
     };
 
     try {
-      const response = await processRepository(request);
-      if (response.status === "completed") {
-        // Store the output in localStorage for the results page
-        localStorage.setItem("repopackOutput", response.output || "");
-        router.push("/results");
-      } else {
-        setError(response.error || "Failed to process repository");
+      const stream = await processRepoStreaming(request);
+
+      for await (const message of stream) {
+        setProgressMessage(message.humanFriendlyProgress);
+        setProgress(message.progress ?? 0);
+        console.log(message.humanFriendlyProgress);
+
+        if (message.complete) {
+          if (message.error) {
+            setError(message.error);
+          } else if (message.output) {
+            localStorage.setItem("repopackOutput", message.output);
+            router.push("/results");
+          }
+          break;
+        }
       }
+
+      await stream.close();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unexpected error occurred"
       );
     } finally {
       setIsSubmitting(false);
+      setProgress(0);
     }
   };
 
@@ -60,7 +87,7 @@ export default function HomePage() {
     <div className="container mx-auto py-8">
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>RepoRepo</CardTitle>
+          <CardTitle>RepoPack Online</CardTitle>
           <CardDescription>
             Process your GitHub repository with Repopack
           </CardDescription>
@@ -73,7 +100,12 @@ export default function HomePage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
+            {isSubmitting && (
+              <div className="space-y-2">
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-gray-500">{progressMessage}</p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="githubUrl">GitHub Repository URL</Label>
               <Input
@@ -82,6 +114,18 @@ export default function HomePage() {
                 placeholder="https://github.com/username/repo"
                 required
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="outputStyle">Output Style</Label>
+              <Select name="outputStyle" defaultValue="markdown">
+                <SelectTrigger>
+                  <SelectValue placeholder="Select output style" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="markdown">Markdown</SelectItem>
+                  <SelectItem value="xml">XML</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

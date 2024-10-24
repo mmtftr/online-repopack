@@ -134,6 +134,7 @@ export namespace auth {
 export namespace repopack {
     export interface Message {
         humanFriendlyProgress: string
+        progress: number
         output?: string
         complete: boolean
         error?: string
@@ -145,14 +146,7 @@ export namespace repopack {
         sizeThresholdMb?: number
         regexFilter?: string
         maxRepoSizeMb?: number
-    }
-
-    export interface ProcessRepoRequest {
-        githubUrl: string
-        excludePatterns?: string[]
-        sizeThresholdMb?: number
-        regexFilter?: string
-        maxRepoSizeMb?: number
+        outputStyle?: "markdown" | "xml"
     }
 
     export class ServiceClient {
@@ -162,22 +156,13 @@ export namespace repopack {
             this.baseClient = baseClient
         }
 
-        public async processRepo(params: ProcessRepoRequest): Promise<{
-    output: string
-}> {
-            // Now make the actual call to the API
-            const resp = await this.baseClient.callAPI("POST", `/process-repo`, JSON.stringify(params))
-            return await resp.json() as {
-    output: string
-}
-        }
-
         public async processRepoStreaming(params: ProcessRepoRequest): Promise<StreamIn<Message>> {
             // Convert our params into the objects we need for the request
             const query = makeRecord<string, string | string[]>({
                 excludePatterns: params.excludePatterns?.map((v) => v),
                 githubUrl:       params.githubUrl,
                 maxRepoSizeMb:   params.maxRepoSizeMb === undefined ? undefined : String(params.maxRepoSizeMb),
+                outputStyle:     params.outputStyle === undefined ? undefined : String(params.outputStyle),
                 regexFilter:     params.regexFilter,
                 sizeThresholdMb: params.sizeThresholdMb === undefined ? undefined : String(params.sizeThresholdMb),
             })
