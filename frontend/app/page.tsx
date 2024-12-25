@@ -185,7 +185,6 @@ export default function HomePage() {
     const request: repopack.ProcessRepoRequest = {
       githubUrl: formData.get("githubUrl") as string,
       sizeThresholdMb: Number(formData.get("sizeThreshold")) || undefined,
-      regexFilter: (formData.get("regexFilter") as string) || undefined,
       excludePatterns: (formData.get("excludePatterns") as string) || undefined,
       outputStyle:
         (formData.get(
