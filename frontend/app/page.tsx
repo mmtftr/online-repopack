@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { processRepoStreaming } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { repopack } from "./lib/client";
 
 const FILE_SELECTION_TIMEOUT_MS = 100000;
@@ -31,6 +31,16 @@ interface LargeFile {
   size: number;
   tokenCount: number;
 }
+
+interface ProcessedRepo {
+  url: string;
+  timestamp: number;
+  outputUrl?: string;
+  output?: string;
+  size: number;
+}
+
+const MAX_HISTORY_ITEMS = 10;
 
 function LargeFilesSelector({
   files,
@@ -90,6 +100,70 @@ function LargeFilesSelector({
     </div>
   );
 }
+
+function saveToHistory(repo: ProcessedRepo) {
+  const history = getHistory();
+  history.unshift(repo);
+  while (history.length > MAX_HISTORY_ITEMS) {
+    history.pop();
+  }
+  localStorage.setItem("repopackHistory", JSON.stringify(history));
+}
+
+function getHistory(): ProcessedRepo[] {
+  try {
+    return JSON.parse(localStorage.getItem("repopackHistory") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function ProcessHistory({ history }: { history: ProcessedRepo[] }) {
+  if (history.length === 0) return null;
+
+  const router = useRouter();
+  return (
+    <Card className="max-w-2xl mx-auto mt-8">
+      <CardHeader>
+        <CardTitle>Recent Repositories</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {history.map((repo, i) => (
+            <div
+              key={i}
+              className="flex justify-between items-center p-2 border rounded"
+            >
+              <div>
+                <div className="font-medium">{repo.url}</div>
+                <div className="text-sm text-gray-500">
+                  {new Date(repo.timestamp).toLocaleString()} -
+                  {(repo.size / 1024).toFixed(2)}KB
+                </div>
+              </div>
+              {(repo.output || repo.outputUrl) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (repo.output) {
+                      localStorage.setItem("repopackOutput", repo.output);
+                      router.push("/results");
+                    } else if (repo.outputUrl) {
+                      window.location.href = repo.outputUrl;
+                    }
+                  }}
+                >
+                  View
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,6 +171,12 @@ export default function HomePage() {
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
   const [fileSelectionUI, setFileSelectionUI] = useState<React.ReactNode>(null);
+  const [history, setHistory] = useState<ProcessedRepo[]>([]);
+
+  useEffect(() => {
+    setHistory(getHistory());
+  }, []);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -142,9 +222,23 @@ export default function HomePage() {
         if (message.complete) {
           if (message.error) {
             setError(message.error);
-          } else if (message.output) {
-            localStorage.setItem("repopackOutput", message.output);
-            router.push("/results");
+          } else {
+            const repo: ProcessedRepo = {
+              url: request.githubUrl,
+              timestamp: Date.now(),
+              outputUrl: message.outputUrl,
+              output: message.output,
+              size: message.outputSize || 0,
+            };
+            saveToHistory(repo);
+            setHistory(getHistory());
+
+            if (message.output) {
+              localStorage.setItem("repopackOutput", message.output);
+              router.push("/results");
+            } else if (message.outputUrl) {
+              window.location.href = message.outputUrl;
+            }
           }
           break;
         }
@@ -242,6 +336,7 @@ export default function HomePage() {
           )}
         </form>
       </Card>
+      <ProcessHistory history={history} />
     </div>
   );
 }

@@ -7,7 +7,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { pack } from "repopack";
 import { ProcessRepoRequest } from '.';
+import { RepopackOutputBucket } from './bucket';
 import { AsyncGeneratorCallback } from './util';
+
+const MAX_SAVED_FILE_SIZE = 100 * 1024 * 1024;
+const MAX_OUTPUT_SIZE = 0.1 * 1024 * 1024;
+
 
 const TOP_FILES_LENGTH = 10;
 const defaultConfig: Parameters<typeof pack>[1] = {
@@ -40,6 +45,8 @@ export interface Message {
   humanFriendlyProgress: string;
   progress: number;
   output?: string;
+  outputUrl?: string;
+  outputSize?: number;
   complete: boolean;
   error?: string;
   largeFiles?: {
@@ -147,8 +154,28 @@ export class RepopackService {
         const progressNum = 1 / (1 + Math.exp(-numMessages * 0.05)) * 100;
 
         cb.call({ humanFriendlyProgress: `Running repopack: ${progress}`, complete: false, progress: progressNum * 0.5 + 95 });
-      }).then((output) => {
-        cb.call({ humanFriendlyProgress: 'Processing complete', complete: true, output, progress: 100 });
+      }).then(async (output) => {
+        const outputSize = Buffer.byteLength(output, 'utf-8');
+
+        if (outputSize > MAX_SAVED_FILE_SIZE) {
+          throw new Error(`Output size (${(outputSize / 1024 / 1024).toFixed(2)}MB) exceeds maximum allowed size of ${MAX_SAVED_FILE_SIZE / 1024 / 1024}MB`);
+        }
+
+        let outputUrl: string | undefined;
+        if (outputSize > MAX_OUTPUT_SIZE) {
+          const fileName = `${Date.now()}-${randomUUID()}.md`;
+          await RepopackOutputBucket.upload(fileName, Buffer.from(output));
+          outputUrl = await RepopackOutputBucket.publicUrl(fileName);
+        }
+
+        cb.call({
+          humanFriendlyProgress: 'Processing complete',
+          complete: true,
+          output: outputSize <= MAX_OUTPUT_SIZE ? output : undefined,
+          outputUrl,
+          outputSize,
+          progress: 100
+        });
       }).catch((error) => {
         cb.call({ humanFriendlyProgress: 'Error occurred', error: String(error), complete: true, progress: 100 });
       });

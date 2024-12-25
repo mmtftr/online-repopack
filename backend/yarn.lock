@@ -348,10 +348,10 @@ emoji-regex@^10.3.0:
   resolved "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-10.4.0.tgz#03553afea80b3975749cfcb36f776ca268e413d4"
   integrity sha512-EC+0oUMY1Rqm4O6LLrgjtYDvcVYTy7chDnM4Q7030tP4Kwj3u/pR6gP9ygnp2CJMK5Gq+9Q2oqmrFJAz01DXjw==
 
-encore.dev@^1.35.3:
-  version "1.42.1"
-  resolved "https://registry.yarnpkg.com/encore.dev/-/encore.dev-1.42.1.tgz#547466507abffe0c20db329d453751434c90679d"
-  integrity sha512-blok6mHCxIkiL7Y/ckf8NzIYRAOD/261NQN5JicwJ9FHYJ1BgKePK7vRxJID0eByC6BxCpsIgWCIF5hcukBNYQ==
+encore.dev@^1.45.2:
+  version "1.45.2"
+  resolved "https://registry.yarnpkg.com/encore.dev/-/encore.dev-1.45.2.tgz#d4e57715c8b4f8a01d635ae64c41f5686bfb083d"
+  integrity sha512-hBqFOqPSu2CCQTz+gbHOt/qQv1bku8tWFzPgb20dXW9oBiBslhDgtAlGi5nhFOD525ZGM0JHoXx8qee7eQx2Kw==
 
 environment@^1.0.0:
   version "1.1.0"
